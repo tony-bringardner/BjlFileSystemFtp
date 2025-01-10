@@ -8,13 +8,11 @@ import java.util.Properties;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
-import junit.framework.TestCase;
 import us.bringardner.core.BjlLogger;
 import us.bringardner.core.ILogger.Level;
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
 import us.bringardner.io.filesource.ftp.FtpFileSourceFactory;
-import us.bringardner.io.filesource.test.FileSourceAbstractTestClass;
 import us.bringardner.net.ftp.server.FtpServer;
 
 public class TestFtp extends FileSourceAbstractTestClass {
@@ -76,7 +74,7 @@ public class TestFtp extends FileSourceAbstractTestClass {
 				} catch (InterruptedException e) {
 				}
 			}
-			TestCase.assertTrue(svr.isRunning());
+			assertTrue(svr.isRunning());
 			
 
 		} catch(Throwable e) {
