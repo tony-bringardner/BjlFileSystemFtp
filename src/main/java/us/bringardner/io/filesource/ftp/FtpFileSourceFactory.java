@@ -39,9 +39,9 @@ import java.util.Properties;
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
 import us.bringardner.io.filesource.FileSourceUri;
-
-import us.bringardner.net.ftp.client.FtpClient;
+import us.bringardner.io.filesource.FileSourceUser;
 import us.bringardner.net.ftp.client.ClientFtpResponse;
+import us.bringardner.net.ftp.client.FtpClient;
 
 
 public class FtpFileSourceFactory extends FileSourceFactory {
@@ -499,5 +499,20 @@ public class FtpFileSourceFactory extends FileSourceFactory {
 	}
 
 
+	FileSourceUser principle = new FileSourceUser() {
+
+		public String getName() {
+			if( isConnected()) {
+				return FtpFileSourceFactory.this.user;
+			} else {
+				return "UnKnown";
+			}
+		}		
+	};
+
+	@Override
+	public FileSourceUser whoAmI() {
+		return principle;
+	}
 }
 

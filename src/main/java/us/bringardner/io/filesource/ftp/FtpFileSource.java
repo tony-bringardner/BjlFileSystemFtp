@@ -173,24 +173,7 @@ public class FtpFileSource extends BaseObject implements FileSource {
 		return factory.isInfoEnabled();
 	}
 
-	public boolean canRead() throws IOException {
-		boolean ret = false;
-		FtpFile tmp = getTarget();
-		if( tmp != null ) {
-			ret = tmp.canOwnerRead();
-		}
-		return ret;
-	}
-
-	public boolean canWrite() throws IOException {
-		boolean ret = false;
-		FtpFile tmp = getTarget();
-		if( tmp != null ) {
-			ret = tmp.canOwnerWrite();
-		}
-		return ret;
-	}
-
+	
 	@Override
 	public boolean canOwnerRead() throws IOException {
 		boolean ret = false;
