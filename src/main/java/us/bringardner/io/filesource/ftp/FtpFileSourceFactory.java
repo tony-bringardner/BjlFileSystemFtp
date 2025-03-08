@@ -514,5 +514,19 @@ public class FtpFileSourceFactory extends FileSourceFactory {
 	public FileSourceUser whoAmI() {
 		return principle;
 	}
+
+
+
+	@Override
+	public FileSource createSymbolicLink(FileSource newFileLink, FileSource existingFile) throws IOException {
+		throw new UnsupportedOperationException();
+	}
+
+
+
+	@Override
+	public FileSource createLink(FileSource newFileLink, FileSource existingFile) throws IOException {
+		throw new UnsupportedOperationException();
+	}
 }
 
