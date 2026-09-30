@@ -369,6 +369,15 @@ public class FtpFileSourceFactory extends FileSourceFactory {
 		}
 	}
 
+	/**
+	 * The password, and the account (RFC 959 ACCT), which servers that use it
+	 * treat as a further credential.
+	 */
+	@Override
+	public boolean isSecretProperty(String name) {
+		return PROP_PSWD.equals(name) || PROP_ACCT.equals(name);
+	}
+
 	public Properties getConnectProperties() {
 		Properties ret = new Properties();
 
