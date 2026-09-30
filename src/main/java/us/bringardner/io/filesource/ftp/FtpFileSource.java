@@ -51,6 +51,8 @@ import us.bringardner.io.filesource.ftp.FtpFile.Permissions;
 import us.bringardner.core.BaseObject;
 import us.bringardner.net.ftp.client.FtpClient;
 import us.bringardner.net.ftp.client.ClientFtpResponse;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 public class FtpFileSource extends BaseObject implements FileSource {
 
@@ -68,13 +70,14 @@ public class FtpFileSource extends BaseObject implements FileSource {
 
 	public FtpFileSource(String name) {
 		this.factory = (FtpFileSourceFactory)FileSourceFactory.getFileSourceFactory(FtpFileSourceFactory.FACTORY_ID);
-		setName(name);
+		initPath(name);
 	}
 
+	/** @param name a path; see {@link #normalize(String)} (the factory resolves relative ones first) */
 	public FtpFileSource(String name, FtpFileSourceFactory factory) {
 
 		this.factory = factory;
-		setName(name);
+		initPath(name);
 	}
 
 	/**
@@ -83,9 +86,8 @@ public class FtpFileSource extends BaseObject implements FileSource {
 	 * @param factory
 	 */
 	public FtpFileSource(String parent, String name, FtpFileSourceFactory factory) {
-		this.parent = parent;
 		this.factory = factory;
-		setName(name);
+		initPath((parent == null ? "" : parent)+FtpClient.SEPERATOR+name);
 	}
 
 
@@ -94,11 +96,9 @@ public class FtpFileSource extends BaseObject implements FileSource {
 	 * @param factory
 	 */
 	public FtpFileSource(String parent,FtpFile file, FtpFileSourceFactory factory) {
-		this.parent = parent;
 		this.target = file;
 		this.factory = factory;
-		this.name = file.getName();
-
+		initPath((parent == null ? "" : parent)+FtpClient.SEPERATOR+file.getName());
 	}
 
 	/**
@@ -107,10 +107,13 @@ public class FtpFileSource extends BaseObject implements FileSource {
 	 * @param path
 	 */
 	public FtpFileSource(FtpFileSource parentFile, String path) {
-		this.parentFile = parentFile;
-		this.parent = parentFile.getAbsolutePath();
 		this.factory = (FtpFileSourceFactory) parentFile.getFileSourceFactory();
-		setName(path);
+		String parentPath = parentFile.getAbsolutePath();
+		initPath(parentPath+FtpClient.SEPERATOR+path);
+		if( parentPath.equals(parent)) {
+			// a plain name: keep the parent object (otherwise it's made when asked for)
+			this.parentFile = parentFile;
+		}
 	}
 
 	/**
@@ -124,11 +127,10 @@ public class FtpFileSource extends BaseObject implements FileSource {
 	}
 
 	public FtpFileSource(FtpFileSource p, FtpFile t,			FtpFileSourceFactory f) {
-		this.parentFile = p;
 		this.target = t;
 		this.factory = f;
-		this.name = t.getName();
-		this.parent = p.getAbsolutePath();
+		initPath(p.getAbsolutePath()+FtpClient.SEPERATOR+t.getName());
+		this.parentFile = p;
 	}
 
 
@@ -338,13 +340,8 @@ public class FtpFileSource extends BaseObject implements FileSource {
 	}
 
 	public FileSource getChild(String path) throws IOException {
-		// child can't be absolute name
-		path = FileSourceFactory.expandDots(path, '/');
-		while( path.startsWith("/")) {
-			path = path.substring(1);
-		}
-		FileSource ret = new FtpFileSource(this,path);
-		return ret;
+		// relative to this even if it starts with "/"; "." and ".." are resolved
+		return new FtpFileSource(this,path);
 	}
 
 	public String getContentType() {
@@ -463,19 +460,6 @@ public class FtpFileSource extends BaseObject implements FileSource {
 	public long getVersionDate()  throws IOException {
 		// version not supported
 		return lastModified();
-	}
-
-	public boolean isChildOfMine(FileSource child) {
-		boolean ret = (child instanceof FtpFileSource);
-		if( ret ){
-			try {
-				ret = child.getCanonicalPath().startsWith(getCanonicalPath());
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
-
-		return ret;
 	}
 
 	public boolean isDirectory() throws IOException {
@@ -744,24 +728,39 @@ public class FtpFileSource extends BaseObject implements FileSource {
 	 * Private method to set the name field.  The parent is determined and set.
 	 * @param name
 	 */
-	private void setName(String name1) {
-
-		String tmpName  = setPathSeperator(name1);
-		int idx = tmpName.lastIndexOf(FtpClient.SEPERATOR_CHAR);
-		if( idx > 0 ) {
-			this.name = tmpName.substring(idx+1);
-			if( parent != null ) {
-				// Append this part 
-				this.parent += FtpClient.SEPERATOR_CHAR+tmpName.substring(0,idx);
-			} else {
-				this.parent = tmpName.substring(0,idx);
+	/**
+	 * The path in canonical form (BJL-14): absolute, "/"-separated ("\\" counts as "/"),
+	 * no repeated or trailing separators, "." dropped and ".." removing the element before
+	 * it (".." at the root stays at the root). FTP has no links to follow, so this is the
+	 * canonical path as the server's commands see it. A relative path is taken from the
+	 * root; FtpFileSourceFactory.createFileSource resolves relative paths first.
+	 */
+	public static String normalize(String path) {
+		Deque<String> parts = new ArrayDeque<>();
+		for(String part : (path == null ? "" : path).replace('\\', '/').split("/")) {
+			if( part.isEmpty() || part.equals(".")) {
+				continue;
 			}
-		} else if( idx <= 0 ) {
-			//  I'm the root
-			// TODO:  Is this right? this.parent = null;
-			name = tmpName;
-		} 
+			if( part.equals("..")) {
+				parts.pollLast();
+			} else {
+				parts.addLast(part);
+			}
+		}
+		return FtpClient.SEPERATOR+String.join(FtpClient.SEPERATOR, parts);
+	}
 
+	/** Sets parent and name from the normalized path; the root has name "/" and no parent. */
+	private void initPath(String path) {
+		String p = normalize(path);
+		int idx = p.lastIndexOf(FtpClient.SEPERATOR_CHAR);
+		if( p.equals(FtpClient.SEPERATOR)) {
+			parent = null;
+			name = FtpClient.SEPERATOR;
+		} else {
+			parent = idx == 0 ? FtpClient.SEPERATOR : p.substring(0, idx);
+			name = p.substring(idx+1);
+		}
 	}
 
 	/* 

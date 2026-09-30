@@ -158,12 +158,36 @@ public class FtpFileSourceFactory extends FileSourceFactory {
 		return secure;
 	}
 
-	public FileSource createFileSource(String name) {
-		return new FtpFileSource(name,this);
+	/** A relative path is taken from the server's current directory (PWD). */
+	public FileSource createFileSource(String name) throws IOException {
+		String path = name == null ? "" : name.replace('\\', '/');
+		if( !path.startsWith("/")) {
+			return getCurrentDirectory().getChild(path);
+		}
+		return new FtpFileSource(path,this);
 	}
 
-	public FileSource createFileSource(String parent, String name) {
-		return new FtpFileSource(parent,name,this);
+	public FileSource createFileSource(String parent, String name) throws IOException {
+		return createFileSource((parent == null ? "" : parent)+"/"+name);
+	}
+
+	/**
+	 * The same server account: same host (ignoring case), port and user. Paths from
+	 * such factories name the same files, so isChildOfMine can compare them.
+	 */
+	@Override
+	public boolean isSameFileSystem(FileSourceFactory other) {
+		if( other == this ) {
+			return true;
+		}
+		if( !(other instanceof FtpFileSourceFactory)) {
+			return false;
+		}
+		FtpFileSourceFactory o = (FtpFileSourceFactory) other;
+		String h1 = getHost(), h2 = o.getHost();
+		return getPort() == o.getPort()
+				&& (h1 == null ? h2 == null : h1.equalsIgnoreCase(h2))
+				&& java.util.Objects.equals(getUser(), o.getUser());
 	}
 
 	public String getAccount() {
@@ -223,7 +247,7 @@ public class FtpFileSourceFactory extends FileSourceFactory {
 	public FileSource[] listRoots() {
 		if( roots == null ) {
 			roots = new FileSource[1];
-			roots[0] = createFileSource("/");
+			roots[0] = new FtpFileSource("/", this);
 		}
 		return roots;
 	}
