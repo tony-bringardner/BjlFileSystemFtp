@@ -33,11 +33,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.ParseException;
-import java.util.Calendar;
 import java.util.Date;
 
 import us.bringardner.core.BaseObject;
-import us.bringardner.core.util.ThreadSafeDateFormat;
 import us.bringardner.net.ftp.FTP;
 import us.bringardner.net.ftp.client.ClientFtpResponse;
 import us.bringardner.net.ftp.client.FtpClient;
@@ -322,21 +320,12 @@ public class FtpFile extends BaseObject {
 
 		length = Long.parseLong(parts[sizePos]);
 
-		String tmp = parts[monthPos]+" "+parts[dayPos]+" "+parts[timePos];
-
-
-		ThreadSafeDateFormat format = List.oldDateFmt;
-		if(tmp.indexOf(':') > 0 ) {
-			// young format (what were these people thinking???
-			format = List.newDateFmt;
-			Calendar cal = Calendar.getInstance();
-			tmp += " "+cal.get(Calendar.YEAR);
-		} 
-
+		// Shared with the server and FtpClientFile: ls style dates, the right year for recent
+		// entries ("Oct  1 12:25" has no year) and English month names (BJL-45, BJL-46)
 		try {
-			lastModified = format.parse(tmp).getTime();
-		} catch (ParseException ex) {
-			logError("Can't parse date / time val ='"+tmp+"' entry="+entry);
+			lastModified = List.parseListDate(parts[monthPos], parts[dayPos], parts[timePos], java.time.ZoneId.systemDefault(), System.currentTimeMillis());
+		} catch (java.time.DateTimeException ex) {
+			logError("Can't parse date / time val ='"+parts[monthPos]+" "+parts[dayPos]+" "+parts[timePos]+"' entry="+entry);
 		}
 
 
