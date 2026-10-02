@@ -35,6 +35,7 @@ import java.io.OutputStream;
 import java.util.Date;
 
 import us.bringardner.core.BaseObject;
+import us.bringardner.net.ftp.client.FtpClientFile;
 import us.bringardner.net.ftp.FTP;
 import us.bringardner.net.ftp.client.ClientFtpResponse;
 import us.bringardner.net.ftp.client.FtpClient;
@@ -242,18 +243,18 @@ public class FtpFile extends BaseObject {
 	}
 
 	private void parseMlstEntry(String entry) {
-		String [] parts = entry.split(";");
-		if( parts.length < 4 ) {
+		// RFC 3659 section 7.2: facts (each ending with ';'), one space, then the pathname.
+		// MLST gives the whole pathname (/dir/a.txt), MLSD usually just the name (BJL-49).
+		String [] split = FtpClientFile.splitMlsxEntry(entry);
+		String [] parts = split == null ? new String[0] : split[0].split(";");
+		if( parts.length < 3 ) {
 			//  Can't be a valid MLST entry
 			parseUnixEntry(entry);
 			return;
 		}
-		name = parts[parts.length-1].trim();
-		if( name.length()>0 && name.charAt(0)=='/') {
-			name = name.substring(1);
-		}
+		name = FtpClientFile.mlsxName(split[1]);
 
-		for (int idx = 0,sz=parts.length-1; idx < sz; idx++) {
+		for (int idx = 0,sz=parts.length; idx < sz; idx++) {
 			String [] tmp = parts[idx].split("=");
 			String fact = tmp[0].trim().toUpperCase();
 			if( fact.equals(FTP.MODIFY)) {
