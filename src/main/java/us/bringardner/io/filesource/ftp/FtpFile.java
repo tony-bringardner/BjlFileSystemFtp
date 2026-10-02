@@ -32,7 +32,6 @@ package us.bringardner.io.filesource.ftp;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.text.ParseException;
 import java.util.Date;
 
 import us.bringardner.core.BaseObject;
@@ -268,13 +267,9 @@ public class FtpFile extends BaseObject {
 				 * 
 				 */
 				try {
-					String time = tmp[1];
-					if( tmp[1].indexOf('.') < 0 ) {
-						time = time+".000";
-					}
-					lastModified = Mlst.TIME_FORMAT.parse(time).getTime();					
-				} catch (ParseException e) {
-					logError("Can't parse time",e);					
+					lastModified = Mlst.parseTime(tmp[1]);
+				} catch (java.time.DateTimeException e) {
+					logError("Can't parse time "+tmp[1],e);
 				}
 			} else if( fact.equals(FTP.SIZE)) {
 				length = Long.parseLong(tmp[1]);
