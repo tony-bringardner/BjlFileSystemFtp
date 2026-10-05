@@ -35,12 +35,10 @@ import java.io.OutputStream;
 import java.util.Date;
 
 import us.bringardner.core.BaseObject;
-import us.bringardner.net.ftp.client.FtpClientFile;
+import us.bringardner.net.ftp.client.ListEntry;
 import us.bringardner.net.ftp.FTP;
 import us.bringardner.net.ftp.client.ClientFtpResponse;
 import us.bringardner.net.ftp.client.FtpClient;
-import us.bringardner.net.ftp.server.commands.List;
-import us.bringardner.net.ftp.server.commands.Mlst;
 import us.bringardner.net.ftp.server.commands.Site;
 
 
@@ -194,137 +192,18 @@ public class FtpFile extends BaseObject {
 		return parentFile;
 	}
 
-	/**
-	 * Local helper function to clean up the entry 
-	 * by removing unwanted spaces.  This just makes it 
-	 * easier to parser the entry.
-	 *  
-	 * @param entry received from remote system
-	 * @return entry with unwanted spaces removed.
-	 */
-	private String cleanup(String entry) {
-
-		StringBuffer ret = new StringBuffer(entry.length());
-		byte [] data = entry.getBytes();
-		byte lst = '\0';
-		/*  /services/home/thewallicks.com/Backup/marie/My Documents/JFS
-		 * 
-		 * There are 9 data sections in an entry separated by whitespace.
-		 * the last one is the name but it could contain whitespace.
-		 * So, we want to stop before we change the name.
-		 */
-		int section=0;
-		int idx=0;
-		for (; section < 8 && idx < data.length; idx++) {
-			if((lst=data[idx]) == ' ') {
-				section++;
-				while((data[idx+1]==' ' || data[idx+1]=='\t') && idx < data.length ) {
-					idx++;
-				}
-
-			}
-			ret.append((char)lst);
-		}
-
-		//  We've found the name so use it to set our field
-		name = entry.substring(idx).trim();
-
-		return ret.toString();
-	}
-
 	private void parseEntry(String entry) throws IOException {
-
-		if(factory.getFtpClient().isMlstSupported() ){
-			parseMlstEntry(entry);
-		} else {
-			parseUnixEntry(entry);
-		}
-
-	}
-
-	private void parseMlstEntry(String entry) {
-		// RFC 3659 section 7.2: facts (each ending with ';'), one space, then the pathname.
-		// MLST gives the whole pathname (/dir/a.txt), MLSD usually just the name (BJL-49).
-		String [] split = FtpClientFile.splitMlsxEntry(entry);
-		String [] parts = split == null ? new String[0] : split[0].split(";");
-		if( parts.length < 3 ) {
-			//  Can't be a valid MLST entry
-			parseUnixEntry(entry);
-			return;
-		}
-		name = FtpClientFile.mlsxName(split[1]);
-
-		for (int idx = 0,sz=parts.length; idx < sz; idx++) {
-			String [] tmp = parts[idx].split("=");
-			String fact = tmp[0].trim().toUpperCase();
-			if( fact.equals(FTP.MODIFY)) {
-				/*
-				 *    Symbolically, a time-val may be viewed as
-				 *
-				 * YYYYMMDDHHMMSS.sss
-				 *
-				 * The "." and subsequent digits ("sss") are optional.  However the "."
-				 * MUST NOT appear unless at least one following digit also appears.
-				 * 
-				 */
-				try {
-					lastModified = Mlst.parseTime(tmp[1]);
-				} catch (java.time.DateTimeException e) {
-					logError("Can't parse time "+tmp[1],e);
-				}
-			} else if( fact.equals(FTP.SIZE)) {
-				length = Long.parseLong(tmp[1]);
-			} else if( fact.equals(FTP.TYPE)) {
-				if(tmp[1].equalsIgnoreCase("file")) {
-					type = TYPE_FILE;
-				} else {
-					type = TYPE_DIR;
-				}
-			}
-		}
-
-	}
-
-
-
-	private void parseUnixEntry(String entry) {
-		//  perms   links owner       group  size  mm  dd hh:mm name   
-		//drwxrwxrwx   4 QSYS           0    51200 Feb  9 21:28 home
-		//-rw-------   1 peter                848  Dec 14 11:22 00README.txt
-		//2> validate format
-		// ??  How ??
-		//1> Eliminate any double spaces in the text
-		//int permPos = 0;
-		//int linksPos = 1;
-		int ownerPos = 2;
-		int groupPos = 3;
-		int sizePos = 4;
-		int monthPos = 5;
-		int dayPos = 6;
-		int timePos = 7;
-
-		/*
-		 * Cleanup will remove filler spaces and set the name 
-		 */
-		entry = cleanup(entry.trim());
-
-		type = entry.charAt(0);
-		permissions = entry.substring(1,10).toCharArray();
-		String [] parts = entry.split(" ");
-		owner = parts[ownerPos];
-		group = parts[groupPos];
-
-		length = Long.parseLong(parts[sizePos]);
-
-		// Shared with the server and FtpClientFile: ls style dates, the right year for recent
-		// entries ("Oct  1 12:25" has no year) and English month names (BJL-45, BJL-46)
-		try {
-			lastModified = List.parseListDate(parts[monthPos], parts[dayPos], parts[timePos], java.time.ZoneId.systemDefault(), System.currentTimeMillis());
-		} catch (java.time.DateTimeException ex) {
-			logError("Can't parse date / time val ='"+parts[monthPos]+" "+parts[dayPos]+" "+parts[timePos]+"' entry="+entry);
-		}
-
-
+		//  The parsing is shared with bjl_net_ftp's FtpClientFile (ListEntry). This class used to
+		//  have its own copy, whose byte based cleanup garbled names when the owner or group had
+		//  non-ASCII characters, and which ignored the MLSx perm fact.
+		ListEntry e = ListEntry.parse(entry, factory.getFtpClient().isMlstSupported(), this::logError);
+		name = e.getName();
+		owner = e.getOwner();
+		group = e.getGroup();
+		length = e.getLength();
+		lastModified = e.getLastModified();
+		type = e.getType();
+		permissions = e.getPermissions();
 	}
 
 	public boolean isDirectory() {
