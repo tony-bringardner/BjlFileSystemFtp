@@ -301,13 +301,7 @@ public class FtpFile extends BaseObject {
 		if( permissions == null || permissions.length != 9) {
 			synchronized (this) {
 				if( permissions == null || permissions.length != 9) {
-					String[] resp= factory.getFtpClient().executeList(true, getAbsolutePath());
-					// should be one and only one line
-					if( resp!=null && resp.length==1) {
-						if( resp[0].length()>=9) {
-							permissions = resp[0].substring(1,10).toCharArray();
-						}
-					}
+					permissions = listPermissions();
 				}
 			}			
 		}
@@ -318,6 +312,36 @@ public class FtpFile extends BaseObject {
 		}
 
 		return permissions;
+	}
+
+	/**
+	 * The permissions from a LIST line, null if there isn't one. A file lists
+	 * as its own line; a directory lists its contents, so its line is found
+	 * in its parent's listing. (Directories used to get no permissions.)
+	 */
+	private char[] listPermissions() throws IOException {
+		FtpClient client = factory.getFtpClient();
+		if( !isDirectory()) {
+			String[] resp= client.executeList(true, getAbsolutePath());
+			// should be one and only one line
+			if( resp!=null && resp.length==1 && resp[0].length()>=10) {
+				return resp[0].substring(1,10).toCharArray();
+			}
+			return null;
+		}
+		if( parent == null || parent.isEmpty() || name == null ) {
+			return null;
+		}
+		String[] resp= client.executeList(true, parent);
+		if( resp != null ) {
+			for(String line : resp) {
+				ListEntry e = ListEntry.parse(line, false, this::logError);
+				if( name.equals(e.getName()) && e.getPermissions() != null ) {
+					return e.getPermissions();
+				}
+			}
+		}
+		return null;
 	}
 
 	public InputStream getInputStream() throws IOException {

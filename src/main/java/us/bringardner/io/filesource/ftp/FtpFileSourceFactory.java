@@ -528,7 +528,7 @@ public class FtpFileSourceFactory extends FileSourceFactory {
 
 	@Override
 	public char getSeperatorChar() {
-		return ':';
+		return '/';
 	}
 
 

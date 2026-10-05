@@ -64,7 +64,6 @@ public class FtpFileSource extends BaseObject implements FileSource {
 
 	private volatile FtpFile target;
 	private volatile FtpFileSource parentFile;
-	private volatile boolean testExist = true;
 
 	private volatile FileSource[] kids_;
 
@@ -287,7 +286,6 @@ public class FtpFileSource extends BaseObject implements FileSource {
 			ret = tmp.delete();
 			if( ret ) {
 				target = null;
-				testExist = true;
 				FileSource p = getParentFile();
 				if( p != null ) {
 					if (p instanceof FtpFileSource) {
@@ -304,13 +302,10 @@ public class FtpFileSource extends BaseObject implements FileSource {
 	}
 
 	public boolean exists()  throws IOException {
-
-		boolean ret = target != null;
-		if( testExist ) {
-			ret = getTarget() != null;
-			testExist=false;
-		}
-		return ret;
+		// A missing file is looked up again each time: it may have been created
+		// since, by mkdirs() or by another FileSource for the same path. (A
+		// one-shot flag used to answer "no" for good after the first look.)
+		return getTarget() != null;
 	}
 
 	public String getAbsolutePath() {
@@ -414,7 +409,6 @@ public class FtpFileSource extends BaseObject implements FileSource {
 			}
 
 			target = null;
-			testExist = true;
 
 		} catch (IOException ex) {
 			logError("IOError geting Stream", ex);
@@ -797,10 +791,8 @@ public class FtpFileSource extends BaseObject implements FileSource {
 			if( tmp != null ) {
 				ret = tmp.renameTo(dest.getAbsolutePath());
 				if( ret ) {
-					testExist = true;
 					target = null;
 					kids_ = null;
-					((FtpFileSource) dest).testExist=true;
 					((FtpFileSource) dest).target = null;
 
 					FileSource p  =getParentFile();
