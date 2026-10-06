@@ -593,21 +593,31 @@ public class FtpFileSource extends BaseObject implements FileSource {
 		return ret;
 	}
 
+	/**
+	 * Sends MKD for this path (one level, as java.io.File.mkdir). This used to
+	 * look the path up first and give up when it didn't exist, so it never
+	 * created anything.
+	 */
 	public boolean mkdir() {
 		boolean ret = false;
 		try {
-			FtpFile tmp = getTarget();
-			if( tmp != null ) {
-				if((ret = tmp.mkdir())) {
-					FileSource p = getParentFile();
-					if( p != null ) {
-						if (p instanceof FtpFileSource) {
-							FtpFileSource pfs = (FtpFileSource) p;
-							pfs.kids_ = null;
-						}
-					}
+			if( exists()) {
+				return false;
+			}
+			// one level only: some servers' MKD makes missing parents too
+			FileSource parent = getParentFile();
+			if( parent != null && !parent.isDirectory()) {
+				return false;
+			}
+			FtpClient client = ((FtpFileSourceFactory)getFileSourceFactory()).getFtpClient();
+			if((ret = client.mkDir(getAbsolutePath()))) {
+				// looked up again next time
+				target = null;
+				kids_ = null;
+				FileSource p = getParentFile();
+				if (p instanceof FtpFileSource) {
+					((FtpFileSource) p).kids_ = null;
 				}
-
 			}
 		} catch (IOException ex) {
 			logError("Error in mkdir",ex);
